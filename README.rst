@@ -23,14 +23,14 @@
 Carpe Noctem Tactical Operations ArmA3 mod synchronization tool
 ===============================================================
 
-.. image:: https://travis-ci.org/CntoDev/CNTOSync.svg?branch=master
+.. image:: https://travis-ci.org/CntoDev/CNTOSync.svg?branch=develop
     :target: https://travis-ci.org/CntoDev/CNTOSync
     :alt: Continuous Integration Build Status
-.. image:: https://coveralls.io/repos/github/CntoDev/CNTOSync/badge.svg?branch=master
-    :target: https://coveralls.io/github/CntoDev/CNTOSync?branch=master
+.. image:: https://coveralls.io/repos/github/CntoDev/CNTOSync/badge.svg?branch=develop
+    :target: https://coveralls.io/github/CntoDev/CNTOSync?branch=develop
     :alt: Code Coverage Status
-.. image:: https://requires.io/github/CntoDev/CNTOSync/requirements.svg?branch=master
-    :target: https://requires.io/github/CntoDev/CNTOSync/requirements/?branch=master
+.. image:: https://requires.io/github/CntoDev/CNTOSync/requirements.svg?branch=develop
+    :target: https://requires.io/github/CntoDev/CNTOSync/requirements/?branch=develop
     :alt: Requirements Status
 
 *CNTOSync* is an ArmA3 mod repository synchronization tool. This tool allows for members of an
