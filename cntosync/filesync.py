@@ -23,12 +23,13 @@
 """Provide an interface for operations on a repository."""
 
 import os
+import zlib
+from typing import Dict, Iterable, List, Union
 from urllib.parse import urlparse
 
 import msgpack
 
-from . import configuration
-from . import exceptions
+from . import configuration, exceptions
 
 
 def valid_url(url: str) -> bool:
@@ -38,14 +39,59 @@ def valid_url(url: str) -> bool:
     return all([parsed_url.scheme, parsed_url.netloc])
 
 
+def list_files(path: str, bl_subdirs: Iterable[str] = None, bl_extensions: Iterable[str] = None) \
+        -> List:
+    """List the absolute path to every file in a directory, subdirectories included."""
+    if bl_subdirs is None:
+        bl_subdirs = tuple()
+    if bl_extensions is None:
+        bl_extensions = tuple()
+
+    dir_list = os.walk(path)
+    file_list = []
+
+    for dir_entry in dir_list:
+        if dir_entry[0].replace(path + '/', '') in bl_subdirs:
+            continue
+        for file in dir_entry[2]:
+            add = True
+            for bl_extension in bl_extensions:
+                if file.endswith(bl_extension):
+                    add = False
+            if add:
+                file_list.append(dir_entry[0] + '/' + file)
+
+    return file_list
+
+
+def file_checksum(path: str) -> int:
+    """Compute adler32 checksum of the whole content of a file."""
+    with open(path, mode='rb') as file:
+        checksum = zlib.adler32(file.read())
+
+    return checksum
+
+
 class Repository(object):
     """Wrap operations on a directory that logically contains a repository."""
 
     supported_url_schemas = ('file', 'http', 'https')
 
-    def __init__(self, directory: str) -> None:
-        """Attempt to load existing repository configuration."""
-        pass
+    def __init__(self, path: str) -> None:
+        """Load repository configuration if existing."""
+        # TODO: check 'path' is absolute path
+        self.repo_path: str = path
+
+        # TODO: load following settings from args or repository configuration
+        self.index_subdir: str = '.cntosync'
+        self.index_path: str = os.path.join(self.repo_path, self.index_subdir)
+        self.index_filename: str = 'repoinfo'
+        self.sync_file_ext: str = '.cntosync'
+
+        # TODO: load current repository status (main index file and options)
+        # TODO: add 'full_load' argument to allow loading every sync file
+        self.settings: Dict[str, Union[str, int]] = {}
+        self.file_checksums: Dict[str, int] = {}
 
     @staticmethod
     def check_presence(directory: str) -> bool:
@@ -92,3 +138,35 @@ class Repository(object):
             index_file.write(msgpack.packb(repository_index))
 
         return cls(directory)
+    
+    def index(self) -> None:
+        """Generate main index file and sync files, overwrite existing ones."""
+        file_list = list_files(self.repo_path, [self.index_subdir], [self.sync_file_ext])
+        gen_file_checksums = {}
+
+        for file in file_list:
+            gen_file_checksums[file] = file_checksum(file)
+            if file not in self.file_checksums or self.file_checksums[file] != \
+                    gen_file_checksums[file]:
+                self.create_sync_file(file)
+
+        self.file_checksums = gen_file_checksums
+
+    def create_sync_file(self, path: str) -> None:
+        """Generate synchronisation metadata for file at `path` and store it into a sync file."""
+        whole_checksum = file_checksum(path)
+
+        file_sync_path = path + self.sync_file_ext
+        with open(file_sync_path, mode='w+b') as sync_file:
+            sync_file.write(msgpack.packb(whole_checksum))
+
+    def flush_index(self) -> None:
+        """Update index file with current repository status, overwrite existing file."""
+        index_content = {'settings': self.settings, 'whole_checksums': self.file_checksums}
+
+        if not os.path.exists(self.index_path):
+            os.mkdir(self.index_path)
+
+        index_file_path = os.path.join(self.index_path, self.index_filename)
+        with open(index_file_path, mode='w+b') as index_file:
+            index_file.write(msgpack.packb(index_content))
