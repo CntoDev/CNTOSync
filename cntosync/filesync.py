@@ -51,7 +51,11 @@ def list_files(path: str, bl_subdirs: Iterable[str] = None, bl_extensions: Itera
     file_list = []
 
     for dir_entry in dir_list:
-        if dir_entry[0].replace(path + '/', '') in bl_subdirs:
+        skip = False
+        for bl_subdir in bl_subdirs:
+            if bl_subdir in dir_entry[0].replace(path, ''):
+                skip = True
+        if skip:
             continue
         for file in dir_entry[2]:
             add = True
@@ -77,16 +81,15 @@ class Repository(object):
 
     supported_url_schemas = ('file', 'http', 'https')
 
-    def __init__(self, path: str) -> None:
+    def __init__(self, path: str, index_directory: str = '.cntosync',
+                 index_filename: str = 'repoinfo', metafile_extension: str = '.cntosync') -> None:
         """Load repository configuration if existing."""
-        # TODO: check 'path' is absolute path
-        self.repo_path: str = path
+        self.repo_path: str = os.path.abspath(path)
 
-        # TODO: load following settings from args or repository configuration
-        self.index_subdir: str = '.cntosync'
+        self.index_subdir: str = index_directory
         self.index_path: str = os.path.join(self.repo_path, self.index_subdir)
-        self.index_filename: str = 'repoinfo'
-        self.sync_file_ext: str = '.cntosync'
+        self.index_filename: str = index_filename
+        self.sync_file_ext: str = metafile_extension
 
         # TODO: load current repository status (main index file and options)
         # TODO: add 'full_load' argument to allow loading every sync file
@@ -138,7 +141,7 @@ class Repository(object):
             index_file.write(msgpack.packb(repository_index))
 
         return cls(directory)
-    
+
     def index(self) -> None:
         """Generate main index file and sync files, overwrite existing ones."""
         file_list = list_files(self.repo_path, [self.index_subdir], [self.sync_file_ext])

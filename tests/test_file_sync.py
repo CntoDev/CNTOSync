@@ -23,6 +23,8 @@
 """Test suite for `cntosync.filesync`."""
 
 import os
+import random
+import zlib
 from unittest.mock import call
 
 import cntosync.configuration as config
@@ -30,6 +32,34 @@ import cntosync.filesync as unit
 from cntosync import exceptions
 
 import pytest
+
+
+test_dir_structure = (
+    ('/testdir', ('subdir_1', 'subdir_2'), ('root_file_1', 'root_file_2.txt')),
+    ('/testdir/subdir_1', ('s_subdir_1'), ('subdir_1_file_1.txt', 'subdir_1_file_2')),
+    ('/testdir/subdir_2', (), ('subdir_2_file_1.bb', 'subdir_2_file_2.aa')),
+    ('/testdir/subdir_1/s_subdir_1', (), ('s_subdir_1_file_1',)),
+)
+
+test_file_contents = {
+    'root_file_1': 'aaaa',
+    'root_file_2.txt': 'bbbb',
+    'subdir_1_file_1.txt': 'cccc',
+    'subdir_1_file_2': 'ddddd',
+    'subdir_2_file_1.bb': 'eeeee',
+    'subdir_2_file_2.aa': 'fffff',
+    's_subdir_1_file_1': 'gggggggggg',
+}
+
+test_file_paths = (
+    '/testdir/root_file_1',
+    '/testdir/root_file_2.txt',
+    '/testdir/subdir_1/subdir_1_file_1.txt',
+    '/testdir/subdir_1/subdir_1_file_2',
+    '/testdir/subdir_2/subdir_2_file_1.bb',
+    '/testdir/subdir_2/subdir_2_file_2.aa',
+    '/testdir/subdir_1/s_subdir_1/s_subdir_1_file_1',
+)
 
 
 class CommonMock(object):
@@ -49,42 +79,6 @@ class CommonMock(object):
 def common_mock(mocker) -> CommonMock:
     """Offer `InitRepoMock` as pytest fixture."""
     return CommonMock(mocker)
-
-
-testdir_contents = {'root_file_1': 'foo', 'root_file_2': 'bar', 'subdir_1_file_1': 'something',
-                    'subdir_1_file_2': 'aaaaaa', 'subdir_2_file_1': 'somecontent',
-                    'subdir_2_file_2': 'moreofit'}
-testdir_paths = []
-
-
-@pytest.fixture(scope='session')
-def testdir(tmpdir_factory):
-    """Return a temporary directory populated with test files and subdirectories."""
-    root = tmpdir_factory.getbasetemp()
-    subdir0 = tmpdir_factory.mktemp('subdir', numbered=True)
-    subdir1 = tmpdir_factory.mktemp('subdir', numbered=True)
-    root_file_1 = root.join('root_file_1')
-    root_file_2 = root.join('root_file_2.txt')
-    subdir_1_file_1 = subdir0.join('subdir_1_file_1.pdf')
-    subdir_1_file_2 = subdir0.join('subdir_1_file_2.md')
-    subdir_2_file_1 = subdir1.join('subdir_2_file_1')
-    subdir_2_file_2 = subdir1.join('subdir_2_file_2.txt')
-
-    root_file_1.write(testdir_contents['root_file_1'])
-    root_file_2.write(testdir_contents['root_file_2'])
-    subdir_1_file_1.write(testdir_contents['subdir_1_file_1'])
-    subdir_1_file_2.write(testdir_contents['subdir_1_file_2'])
-    subdir_2_file_1.write(testdir_contents['subdir_2_file_1'])
-    subdir_2_file_2.write(testdir_contents['subdir_2_file_2'])
-
-    testdir_paths.append(str(root_file_1))
-    testdir_paths.append(str(root_file_2))
-    testdir_paths.append(str(subdir_1_file_1))
-    testdir_paths.append(str(subdir_1_file_2))
-    testdir_paths.append(str(subdir_2_file_1))
-    testdir_paths.append(str(subdir_2_file_2))
-
-    return root
 
 
 @pytest.mark.parametrize('os_return_values,unit_return_value', [
@@ -207,28 +201,51 @@ def test_init_repo_invalid_url(url):
         unit.Repository.initialize(directory, name, url)
 
 
-def test_list_files_nominal(testdir):
+def test_list_files_nominal(mocker):
     """Assert function returns correct list of files."""
-    files = unit.list_files(str(testdir))
+    mocker.patch('os.walk', return_value=test_dir_structure)
 
-    assert len(testdir_paths) == len(files)
-    for file in files:
-        assert file in testdir_paths
+    files = unit.list_files(test_dir_structure[0][0])
+
+    assert len(files) == len(test_file_contents)
+    for path in test_file_paths:
+        assert path in files
 
 
-def test_list_files_bl_subdirs(testdir):
+def test_list_files_bl_subdirs(mocker):
     """Assert files in blacklisted directories are not listed."""
-    files = unit.list_files(str(testdir), bl_subdirs='subdir0')
+    mocker.patch('os.walk', return_value=test_dir_structure)
 
-    assert len(files) == (len(testdir_paths) - 2)
+    files = unit.list_files(test_dir_structure[0][0], bl_subdirs=('subdir_1',))
+
+    assert len(files) == (len(test_file_paths) - 3)
     for file in files:
-        assert 'subdir0' not in file
+        assert 'subdir_1' not in file
 
 
-def test_list_files_bl_extensions(testdir):
-    """Assert files with blacklisted extension are not listed"""
-    files = unit.list_files(str(testdir), bl_extensions='.txt')
+def test_list_files_bl_extensions(mocker):
+    """Assert files with blacklisted extension are not listed."""
+    mocker.patch('os.walk', return_value=test_dir_structure)
 
-    assert len(files) == (len(testdir_paths) - 2)
+    files = unit.list_files(test_dir_structure[0][0], bl_extensions=('.txt',))
+
+    assert len(files) == (len(test_file_paths) - 2)
     for file in files:
         assert '.txt' not in file
+
+
+@pytest.mark.parametrize('content_size', [
+    0,
+    4096,
+    102400,
+])
+def test_file_checksum(tmpdir, content_size):
+    """Assert checksums calculated over the content of a file are correct."""
+    random.seed(a=42)
+
+    file_content = bytearray(random.getrandbits(8) for _ in range(content_size))
+    file_path = tmpdir.join('file_checksum_test')
+
+    file_path.write_binary(file_content)
+
+    assert unit.file_checksum(file_path) == zlib.adler32(file_content)
