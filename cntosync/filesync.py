@@ -77,24 +77,25 @@ def file_checksum(path: str) -> int:
 
 
 class Repository(object):
-    """Wrap operations on a directory that logically contains a repository."""
+    """Wrap operations on a directory that contains a repository."""
 
     supported_url_schemas = ('file', 'http', 'https')
 
-    def __init__(self, path: str, index_directory: str = '.cntosync',
+    def __init__(self, path: str,
                  index_filename: str = 'repoinfo', metafile_extension: str = '.cntosync') -> None:
-        """Load repository configuration if existing."""
+        """Initialize object properties."""
         self.repo_path: str = os.path.abspath(path)
 
-        self.index_subdir: str = index_directory
-        self.index_path: str = os.path.join(self.repo_path, self.index_subdir)
+        self.index_subdir: str = configuration.index_directory
+        self.index_fullpath: str = os.path.join(self.repo_path, self.index_subdir)
         self.index_filename: str = index_filename
         self.sync_file_ext: str = metafile_extension
 
-        # TODO: load current repository status (main index file and options)
-        # TODO: add 'full_load' argument to allow loading every sync file
         self.settings: Dict[str, Union[str, int]] = {}
+        # Contains whole file checksums to quickly check if a file has been updated
         self.file_checksums: Dict[str, int] = {}
+        # Contains the data required for the file syncronization
+        self.file_sync_data: Dict = {}
 
     @staticmethod
     def check_presence(directory: str) -> bool:
@@ -142,34 +143,48 @@ class Repository(object):
 
         return cls(directory)
 
-    def index(self) -> None:
-        """Generate main index file and sync files, overwrite existing ones."""
-        file_list = list_files(self.repo_path, [self.index_subdir], [self.sync_file_ext])
+    def index(self, flush: bool = False) -> None:
+        """Generate main index file and sync files, update object status."""
+        file_list = list_files(self.repo_path, [self.index_subdir, ], [self.sync_file_ext, ])
         gen_file_checksums = {}
 
         for file in file_list:
             gen_file_checksums[file] = file_checksum(file)
             if file not in self.file_checksums or self.file_checksums[file] != \
                     gen_file_checksums[file]:
-                self.create_sync_file(file)
+                # File has been updated
+                self.generate_file_sync_metadata(file)
 
         self.file_checksums = gen_file_checksums
 
-    def create_sync_file(self, path: str) -> None:
-        """Generate synchronisation metadata for file at `path` and store it into a sync file."""
-        whole_checksum = file_checksum(path)
+        if flush:
+            self.flush_index()
+            self.flush_all_sync_files()
 
+    def generate_file_sync_metadata(self, path: str) -> None:
+        """Generate synchronisation metadata for file at `path`."""
+        self.file_sync_data[path] = file_checksum(path)
         file_sync_path = path + self.sync_file_ext
-        with open(file_sync_path, mode='w+b') as sync_file:
-            sync_file.write(msgpack.packb(whole_checksum))
+
+    def flush_sync_file(self, file: str) -> None:
+        """Write `file` synchronisation metadata into its synchronisation file."""
+        sync_file_path = file + self.sync_file_ext
+
+        with open(sync_file_path, mode='w+b') as sync_file:
+            sync_file.write(msgpack.packb(self.file_sync_data[file]))
+
+    def flush_all_sync_files(self) -> None:
+        """Flush every synchronisation file."""
+        for file in self.file_sync_data:
+            self.flush_sync_file(file)
 
     def flush_index(self) -> None:
         """Update index file with current repository status, overwrite existing file."""
         index_content = {'settings': self.settings, 'whole_checksums': self.file_checksums}
 
-        if not os.path.exists(self.index_path):
-            os.mkdir(self.index_path)
+        if not os.path.exists(self.index_fullpath):
+            os.mkdir(self.index_fullpath)
 
-        index_file_path = os.path.join(self.index_path, self.index_filename)
+        index_file_path = os.path.join(self.index_fullpath, self.index_filename)
         with open(index_file_path, mode='w+b') as index_file:
             index_file.write(msgpack.packb(index_content))

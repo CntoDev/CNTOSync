@@ -249,3 +249,19 @@ def test_file_checksum(tmpdir, content_size):
     file_path.write_binary(file_content)
 
     assert unit.file_checksum(file_path) == zlib.adler32(file_content)
+
+
+def test_repository_init(mocker):
+    """Assert configuration is properly loaded when instancing the class."""
+    repo = unit.Repository('/repository',
+                           index_directory='indexhere',
+                           index_filename='repoindex',
+                           metafile_extension='filext')
+
+    assert repo.repo_path == '/repository'
+    assert repo.index_subdir == 'indexhere'
+    assert repo.index_fullpath == '/repository/indexhere'
+    assert repo.index_filename == 'repoindex'
+    assert repo.sync_file_ext == 'filext'
+    assert repo.settings == {}
+    assert repo.file_checksums == {}
