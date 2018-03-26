@@ -67,6 +67,7 @@ if __name__ == '__main__':
         # Setuptools parameters
         include_package_data=True,
         install_requires=[
+            'msgpack>=0.5.6,<1',
         ],
         extras_require={
             'dev': [
@@ -74,6 +75,8 @@ if __name__ == '__main__':
             ],
             'test': [
                 'tox>=2.7,<3',
+                'pytest>=3.0,<4',
+                'pytest-mock>=1.5,<2',
             ],
         },
         python_requires='>=3.6,<4',
