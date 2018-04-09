@@ -22,13 +22,7 @@
 
 """Provide access to the configuration."""
 
-
-class Configuration(object):
-    """Handle configuration parameters, version migrations and fallback values."""
-
-    def __init__(self) -> None:
-        """Initialize object."""
-        self.version = '0.1.0'
-        self.index_directory = '.cntosync'
-        self.index_file = 'repoinfo'
-        self.extension = '.cntosync'
+version = '0.1.0'
+index_directory = '.cntosync'
+index_file = 'repoinfo'
+extension = '.cntosync'
