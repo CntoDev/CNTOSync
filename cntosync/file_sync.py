@@ -36,41 +36,42 @@ class Repository(object):
         """Attempt to load existing repository configuration."""
         pass
 
+    @staticmethod
+    def check_presence(directory: str) -> bool:
+        """Check if `directory` contains an initialized repository."""
+        abs_directory = os.path.abspath(directory)
+        index_subdirectory = os.path.join(abs_directory, configuration.index_directory)
+        index_file_path = os.path.join(index_subdirectory, configuration.index_file)
 
-def is_repository(directory: str, configuration: configuration.Configuration) -> bool:
-    """Check if `directory` contains an initialized repository."""
-    abs_directory = os.path.abspath(directory)
-    index_subdirectory = os.path.join(abs_directory, configuration.index_directory)
-    index_file_path = os.path.join(index_subdirectory, configuration.index_file)
-    if os.path.isdir(abs_directory) and os.path.isdir(index_subdirectory) and os.path.isfile(
-            index_file_path):
-        return True
-    else:
-        return False
+        return all([
+            os.path.isdir(abs_directory),
+            os.path.isdir(index_subdirectory),
+            os.path.isfile(index_file_path),
+        ])
 
+    @classmethod
+    def initialize(cls, directory: str, display_name: str, uri: str, overwrite: bool = False) \
+            -> 'Repository':
+        """Create new repository using `directory` as location."""
+        path = os.path.abspath(directory)
+        if not os.path.isdir(path):
+            try:
+                os.makedirs(path, exist_ok=True)
+            except PermissionError:
+                raise
 
-def initialize_repository(directory: str, config: configuration.Configuration,
-                          display_name: str, uri: str, overwrite: bool = False) -> Repository:
-    """Create new repository using `directory` as location."""
-    path = os.path.abspath(directory)
-    if not os.path.isdir(path):
-        try:
-            os.makedirs(path, exist_ok=True)
-        except PermissionError:
-            raise
+        if Repository.check_presence(directory) and not overwrite:
+            return Repository(directory)
 
-    if is_repository(directory, config) and not overwrite:
+        index_directory_path = os.path.join(directory, configuration.index_directory)
+        os.makedirs(index_directory_path, exist_ok=True)
+
+        index_file_path = os.path.join(index_directory_path, configuration.index_file)
+        repository_index = {'display_name': display_name, 'uri': uri,
+                            'configuration_version': configuration.version,
+                            'index_file_name': configuration.index_file,
+                            'sync_file_extension': configuration.extension}
+        with open(index_file_path, mode='wb') as index_file:
+            index_file.write(msgpack.packb(repository_index))
+
         return Repository(directory)
-
-    index_directory_path = os.path.join(directory, config.index_directory)
-    os.makedirs(index_directory_path, exist_ok=True)
-
-    index_file_path = os.path.join(index_directory_path, config.index_file)
-    repository_index = {'display_name': display_name, 'uri': uri,
-                        'configuration_version': config.version,
-                        'index_file_name': config.index_file,
-                        'sync_file_extension': config.extension}
-    with open(index_file_path, mode='wb') as index_file:
-        index_file.write(msgpack.packb(repository_index))
-
-    return Repository(directory)
