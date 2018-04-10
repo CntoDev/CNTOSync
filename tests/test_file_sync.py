@@ -94,22 +94,6 @@ def test_init_repo_index_ok(config, mocker):
     assert mock_packb.call_args == call(index_data)
 
 
-def test_init_repo_return_value(config, mocker):
-    """Assert return value is instance of `file_sync.Repository`."""
-    dir = '/test'  # noqa: A001
-    name = ''
-    uri = ''
-
-    mocker.patch('os.path.isdir', return_value=True)
-    mocker.patch('os.makedirs')
-    mocker.patch('cntosync.file_sync.is_repository', return_value=False)
-    mocker.patch('builtins.open')
-
-    repo = unit.initialize_repository(dir, config, name, uri)
-
-    assert isinstance(repo, unit.Repository)
-
-
 @pytest.mark.parametrize('overwrite', [
     True,
     False,
