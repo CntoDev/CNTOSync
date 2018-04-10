@@ -31,6 +31,24 @@ import cntosync.file_sync as unit
 import pytest
 
 
+class CommonMock(object):
+    """Mock functions common to `unit.Repository.initialize`."""
+
+    def __init__(self, mocker):  # noqa: D401
+        """Setup mocks."""
+        self.mock_path_isdir = mocker.patch('os.path.isdir')
+        self.mock_makedirs = mocker.patch('os.makedirs')
+        self.mock_open = mocker.patch('builtins.open')
+        self.mock_check_presence = mocker.patch('cntosync.file_sync.Repository.check_presence')
+        self.mock_packb = mocker.patch('msgpack.packb')
+
+
+@pytest.fixture()
+def common_mock(mocker) -> CommonMock:
+    """Offer `InitRepoMock` as pytest fixture."""
+    return CommonMock(mocker)
+
+
 @pytest.mark.parametrize('os_return_values,unit_return_value', [
     (((True, True), True), True),
     (((False, True), True), False),
@@ -43,27 +61,24 @@ def test_check_presence(os_return_values, unit_return_value, mocker):
     assert unit.Repository.check_presence('/test') == unit_return_value
 
 
-def test_init_repo_creation_ok(mocker):
+def test_init_repo_creation_ok(common_mock):
     """Assert directories and files are created."""
     directory = '/test'
     name = ''
     uri = ''
 
-    mocker.patch('os.path.isdir', return_value=True)
-    mocker.patch('cntosync.file_sync.Repository.check_presence', return_value=False)
-    mocker.patch('msgpack.packb')
-    mock_os_makedirs = mocker.patch('os.makedirs')
-    mock_open = mocker.patch('builtins.open')
+    common_mock.mock_path_isdir.return_value = True
+    common_mock.mock_check_presence.return_value = False
 
     unit.Repository.initialize(directory, name, uri)
 
-    mock_os_makedirs.assert_called_with(os.path.join(directory, config.index_directory),
-                                        exist_ok=True)
-    mock_open.assert_called_with(os.path.join(directory, config.index_directory,
-                                              config.index_file), mode='wb')
+    common_mock.mock_makedirs.assert_called_with(os.path.join(directory, config.index_directory),
+                                                 exist_ok=True)
+    common_mock.mock_open.assert_called_with(os.path.join(directory, config.index_directory,
+                                                          config.index_file), mode='wb')
 
 
-def test_init_repo_index_ok(mocker):
+def test_init_repo_index_ok(common_mock):
     """Assert index file contains the needed data."""
     directory = '/test'
     name = 'repositorytestname'
@@ -71,68 +86,60 @@ def test_init_repo_index_ok(mocker):
     index_data = {'display_name': name, 'uri': uri, 'configuration_version': config.version,
                   'index_file_name': config.index_file, 'sync_file_extension': config.extension}
 
-    mocker.patch('os.path.isdir', return_value=True)
-    mocker.patch('cntosync.file_sync.Repository.check_presence', return_value=False)
-    mocker.patch('os.makedirs')
-    mock_packb = mocker.patch('msgpack.packb')
-    mock_open = mocker.patch('builtins.open')
+    common_mock.mock_path_isdir.return_value = True
+    common_mock.mock_check_presence.return_value = False
 
     unit.Repository.initialize(directory, name, uri)
 
-    mock_open.return_value.__enter__.return_value.write.assert_called()
-    mock_packb.assert_called_once()
-    assert mock_packb.call_args == call(index_data)
+    common_mock.mock_open.return_value.__enter__.return_value.write.assert_called()
+    common_mock.mock_packb.assert_called_once()
+    assert common_mock.mock_packb.call_args == call(index_data)
 
 
 @pytest.mark.parametrize('overwrite', [
     True,
     False,
 ])
-def test_init_repo_overwrite(overwrite, mocker):
+def test_init_repo_overwrite(overwrite, common_mock):
     """Assert repository is re-initialized if overwrite enabled, assert not changed otherwise."""
     directory = '/test'
     name = ''
     uri = ''
 
-    mocker.patch('cntosync.file_sync.Repository.check_presence', return_value=True)
-    mocker.patch('os.path.isdir', return_value=True)
-    mocker.patch('builtins.open')
-    mock_makedirs = mocker.patch('os.makedirs')
+    common_mock.mock_path_isdir.return_value = True
+    common_mock.mock_check_presence.return_value = True
 
     unit.Repository.initialize(directory, name, uri, overwrite)
 
     if not overwrite:
-        mock_makedirs.assert_not_called()
+        common_mock.mock_makedirs.assert_not_called()
     else:
-        mock_makedirs.assert_called()
+        common_mock.mock_makedirs.assert_called()
 
 
-def test_init_repo_not_dir(mocker):
+def test_init_repo_not_dir(common_mock):
     """Assert directory is created if not existing."""
     directory = '/test'
     name = ''
     uri = ''
 
-    mocker.patch('os.path.isdir', return_value=False)
-    mock_makedirs = mocker.patch('os.makedirs')
-    mocker.patch('cntosync.file_sync.Repository.check_presence', return_value=False)
-    mocker.patch('builtins.open')
+    common_mock.mock_path_isdir.return_value = False
+    common_mock.mock_check_presence.return_value = False
 
     unit.Repository.initialize(directory, name, uri)
 
-    mock_makedirs.assert_any_call(directory, exist_ok=True)
+    common_mock.mock_makedirs.assert_any_call(directory, exist_ok=True)
 
 
-def test_init_repo_permission_denied(mocker):
+def test_init_repo_permission_denied(common_mock):
     """Assert error is raised if invalid permissions to create a directory."""
     directory = '/test'
     name = ''
     uri = ''
 
-    mocker.patch('os.path.isdir', return_value=False)
-    mocker.patch('os.makedirs', side_effect=PermissionError)
-    mocker.patch('cntosync.file_sync.Repository.check_presence', return_value=False)
-    mocker.patch('builtins.open')
+    common_mock.mock_path_isdir.return_value = False
+    common_mock.mock_check_presence.return_value = False
+    common_mock.mock_makedirs.side_effect = PermissionError
 
     with pytest.raises(PermissionError):
         unit.Repository.initialize(directory, name, uri)
