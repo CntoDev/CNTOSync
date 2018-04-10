@@ -23,6 +23,7 @@
 """Provide an interface for operations on a repository."""
 
 import os
+from urllib.parse import urlparse
 
 import msgpack
 
@@ -31,6 +32,8 @@ from . import configuration
 
 class Repository(object):
     """Wrap operations on a directory that logically contains a repository."""
+
+    supported_uri_schemas = ('file', 'http', 'https')
 
     def __init__(self, directory: str) -> None:
         """Attempt to load existing repository configuration."""
@@ -53,6 +56,10 @@ class Repository(object):
     def initialize(cls, directory: str, display_name: str, uri: str, overwrite: bool = False) \
             -> 'Repository':
         """Create new repository using `directory` as location."""
+        parsed_uri = urlparse(uri)
+        if parsed_uri.scheme not in cls.supported_uri_schemas:
+            raise ValueError('invalid uri schema, must be {0}'.format(cls.supported_uri_schemas))
+
         path = os.path.abspath(directory)
         if not os.path.isdir(path):
             try:

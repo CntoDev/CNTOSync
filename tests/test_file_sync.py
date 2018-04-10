@@ -65,7 +65,7 @@ def test_init_repo_creation_ok(common_mock):
     """Assert directories and files are created."""
     directory = '/test'
     name = ''
-    uri = ''
+    uri = 'file://something'
 
     common_mock.mock_path_isdir.return_value = True
     common_mock.mock_check_presence.return_value = False
@@ -82,7 +82,7 @@ def test_init_repo_index_ok(common_mock):
     """Assert index file contains the needed data."""
     directory = '/test'
     name = 'repositorytestname'
-    uri = 'some:/uri/to/repo'
+    uri = 'file://something'
     index_data = {'display_name': name, 'uri': uri, 'configuration_version': config.version,
                   'index_file_name': config.index_file, 'sync_file_extension': config.extension}
 
@@ -104,7 +104,7 @@ def test_init_repo_overwrite(overwrite, common_mock):
     """Assert repository is re-initialized if overwrite enabled, assert not changed otherwise."""
     directory = '/test'
     name = ''
-    uri = ''
+    uri = 'file://something'
 
     common_mock.mock_path_isdir.return_value = True
     common_mock.mock_check_presence.return_value = True
@@ -121,7 +121,7 @@ def test_init_repo_not_dir(common_mock):
     """Assert directory is created if not existing."""
     directory = '/test'
     name = ''
-    uri = ''
+    uri = 'file://something'
 
     common_mock.mock_path_isdir.return_value = False
     common_mock.mock_check_presence.return_value = False
@@ -135,11 +135,21 @@ def test_init_repo_permission_denied(common_mock):
     """Assert error is raised if invalid permissions to create a directory."""
     directory = '/test'
     name = ''
-    uri = ''
+    uri = 'file://something'
 
     common_mock.mock_path_isdir.return_value = False
     common_mock.mock_check_presence.return_value = False
     common_mock.mock_makedirs.side_effect = PermissionError
 
     with pytest.raises(PermissionError):
+        unit.Repository.initialize(directory, name, uri)
+
+
+def test_init_repo_unsupported_schema():
+    """Assert error is raised if unsupported uri schema is passed to repository initialization."""
+    directory = '/test'
+    name = ''
+    uri = 'sftp://something'
+
+    with pytest.raises(ValueError):
         unit.Repository.initialize(directory, name, uri)
