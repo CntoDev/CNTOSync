@@ -33,3 +33,5 @@ __pycache__/
 coverage.xml
 .idea/
 venv
+*.DS_Store
+/docs/build/
