@@ -1,0 +1,22 @@
+cntosync package
+================
+
+Submodules
+----------
+
+cntosync.test\_module module
+----------------------------
+
+.. automodule:: cntosync.test_module
+    :members:
+    :undoc-members:
+    :show-inheritance:
+
+
+Module contents
+---------------
+
+.. automodule:: cntosync
+    :members:
+    :undoc-members:
+    :show-inheritance:
