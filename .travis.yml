@@ -28,6 +28,15 @@ install:
   - "pip install python-coveralls"
 script:
   - "tox"  # Will run with the travis-defined python environment
-  - "tox -e coverage,safety"
+  - "tox -e coverage,safety,docs"
 after_success:
   - "coveralls"
+deploy:
+  provider: pages
+  skip-cleanup: true
+  github-token: $GITHUB_TOKEN
+  keep-history: true
+  on:
+    branch: master
+  local-dir: docs/build
+  committer-from-gh: true

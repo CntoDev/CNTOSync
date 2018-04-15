@@ -78,6 +78,9 @@ if __name__ == '__main__':
                 'pytest>=3.0,<4',
                 'pytest-mock>=1.5,<2',
             ],
+            'docs': [
+                'sphinx>=1.7.2,<2',
+            ],
         },
         python_requires='>=3.6,<4',
         setup_requires=['setuptools_scm'],
