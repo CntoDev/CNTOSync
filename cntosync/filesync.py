@@ -28,12 +28,20 @@ from urllib.parse import urlparse
 import msgpack
 
 from . import configuration
+from . import exceptions
+
+
+def valid_url(url: str) -> bool:
+    """Check if string `url` is a valid URL compliant to RFC2396."""
+    parsed_url = urlparse(url)
+
+    return all([parsed_url.scheme, parsed_url.netloc])
 
 
 class Repository(object):
     """Wrap operations on a directory that logically contains a repository."""
 
-    supported_uri_schemas = ('file', 'http', 'https')
+    supported_url_schemas = ('file', 'http', 'https')
 
     def __init__(self, directory: str) -> None:
         """Attempt to load existing repository configuration."""
@@ -53,12 +61,14 @@ class Repository(object):
         ])
 
     @classmethod
-    def initialize(cls, directory: str, display_name: str, uri: str, overwrite: bool = False) \
+    def initialize(cls, directory: str, display_name: str, url: str, overwrite: bool = False) \
             -> 'Repository':
         """Create new repository using `directory` as location."""
-        parsed_uri = urlparse(uri)
-        if parsed_uri.scheme not in cls.supported_uri_schemas:
-            raise ValueError('invalid uri schema, must be {0}'.format(cls.supported_uri_schemas))
+        if not valid_url(url):
+            raise exceptions.InvalidURL('URL is not valid')
+        parsed_url = urlparse(url)
+        if parsed_url.scheme not in cls.supported_url_schemas:
+            raise exceptions.UnsupportedURLSchema(cls.supported_url_schemas)
 
         path = os.path.abspath(directory)
         if not os.path.isdir(path):
@@ -67,18 +77,18 @@ class Repository(object):
             except PermissionError:
                 raise
 
-        if Repository.check_presence(directory) and not overwrite:
-            return Repository(directory)
+        if cls.check_presence(directory) and not overwrite:
+            return cls(directory)
 
         index_directory_path = os.path.join(directory, configuration.index_directory)
         os.makedirs(index_directory_path, exist_ok=True)
 
         index_file_path = os.path.join(index_directory_path, configuration.index_file)
-        repository_index = {'display_name': display_name, 'uri': uri,
+        repository_index = {'display_name': display_name, 'url': url,
                             'configuration_version': configuration.version,
                             'index_file_name': configuration.index_file,
                             'sync_file_extension': configuration.extension}
         with open(index_file_path, mode='wb') as index_file:
             index_file.write(msgpack.packb(repository_index))
 
-        return Repository(directory)
+        return cls(directory)

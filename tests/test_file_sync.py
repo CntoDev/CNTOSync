@@ -20,13 +20,14 @@
 # All rights reserved.
 # --------------------------------License Notice----------------------------------
 
-"""Test suite for `cntosync.file_sync`."""
+"""Test suite for `cntosync.filesync`."""
 
 import os
 from unittest.mock import call
 
 import cntosync.configuration as config
-import cntosync.file_sync as unit
+import cntosync.filesync as unit
+from cntosync import exceptions
 
 import pytest
 
@@ -39,7 +40,8 @@ class CommonMock(object):
         self.mock_path_isdir = mocker.patch('os.path.isdir')
         self.mock_makedirs = mocker.patch('os.makedirs')
         self.mock_open = mocker.patch('builtins.open')
-        self.mock_check_presence = mocker.patch('cntosync.file_sync.Repository.check_presence')
+        self.mock_valid_url = mocker.patch('cntosync.filesync.valid_url', return_value=True)
+        self.mock_check_presence = mocker.patch('cntosync.filesync.Repository.check_presence')
         self.mock_packb = mocker.patch('msgpack.packb')
 
 
@@ -65,12 +67,12 @@ def test_init_repo_creation_ok(common_mock):
     """Assert directories and files are created."""
     directory = '/test'
     name = ''
-    uri = 'file://something'
+    url = 'file://something'
 
     common_mock.mock_path_isdir.return_value = True
     common_mock.mock_check_presence.return_value = False
 
-    unit.Repository.initialize(directory, name, uri)
+    unit.Repository.initialize(directory, name, url)
 
     common_mock.mock_makedirs.assert_called_with(os.path.join(directory, config.index_directory),
                                                  exist_ok=True)
@@ -82,14 +84,14 @@ def test_init_repo_index_ok(common_mock):
     """Assert index file contains the needed data."""
     directory = '/test'
     name = 'repositorytestname'
-    uri = 'file://something'
-    index_data = {'display_name': name, 'uri': uri, 'configuration_version': config.version,
+    url = 'file://something'
+    index_data = {'display_name': name, 'url': url, 'configuration_version': config.version,
                   'index_file_name': config.index_file, 'sync_file_extension': config.extension}
 
     common_mock.mock_path_isdir.return_value = True
     common_mock.mock_check_presence.return_value = False
 
-    unit.Repository.initialize(directory, name, uri)
+    unit.Repository.initialize(directory, name, url)
 
     common_mock.mock_open.return_value.__enter__.return_value.write.assert_called()
     common_mock.mock_packb.assert_called_once()
@@ -104,12 +106,12 @@ def test_init_repo_overwrite(overwrite, common_mock):
     """Assert repository is re-initialized if overwrite enabled, assert not changed otherwise."""
     directory = '/test'
     name = ''
-    uri = 'file://something'
+    url = 'file://something'
 
     common_mock.mock_path_isdir.return_value = True
     common_mock.mock_check_presence.return_value = True
 
-    unit.Repository.initialize(directory, name, uri, overwrite)
+    unit.Repository.initialize(directory, name, url, overwrite)
 
     if not overwrite:
         common_mock.mock_makedirs.assert_not_called()
@@ -121,12 +123,12 @@ def test_init_repo_not_dir(common_mock):
     """Assert directory is created if not existing."""
     directory = '/test'
     name = ''
-    uri = 'file://something'
+    url = 'file://something'
 
     common_mock.mock_path_isdir.return_value = False
     common_mock.mock_check_presence.return_value = False
 
-    unit.Repository.initialize(directory, name, uri)
+    unit.Repository.initialize(directory, name, url)
 
     common_mock.mock_makedirs.assert_any_call(directory, exist_ok=True)
 
@@ -135,21 +137,35 @@ def test_init_repo_permission_denied(common_mock):
     """Assert error is raised if invalid permissions to create a directory."""
     directory = '/test'
     name = ''
-    uri = 'file://something'
+    url = 'file://something'
 
     common_mock.mock_path_isdir.return_value = False
     common_mock.mock_check_presence.return_value = False
     common_mock.mock_makedirs.side_effect = PermissionError
 
     with pytest.raises(PermissionError):
-        unit.Repository.initialize(directory, name, uri)
+        unit.Repository.initialize(directory, name, url)
 
 
 def test_init_repo_unsupported_schema():
-    """Assert error is raised if unsupported uri schema is passed to repository initialization."""
+    """Assert exception is raised if unsupported url schema is passed."""
     directory = '/test'
     name = ''
-    uri = 'sftp://something'
+    url = 'sftp://something'
 
-    with pytest.raises(ValueError):
-        unit.Repository.initialize(directory, name, uri)
+    with pytest.raises(exceptions.UnsupportedURLSchema):
+        unit.Repository.initialize(directory, name, url)
+
+
+@pytest.mark.parametrize('url', [
+    'http://',
+    'ftp:/malformed',
+    '://onlyhost',
+])
+def test_init_repo_invalid_url(url):
+    """Assert exception is raised if invalid url is passed."""
+    directory = '/test'
+    name = ''
+
+    with pytest.raises(exceptions.InvalidURL):
+        unit.Repository.initialize(directory, name, url)
