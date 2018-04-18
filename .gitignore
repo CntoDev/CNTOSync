@@ -36,3 +36,6 @@ venv
 *.DS_Store
 /docs/build/
 .vscode/
+
+# Force file creation
+docs/cntosync.rst
