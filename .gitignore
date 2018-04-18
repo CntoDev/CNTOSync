@@ -35,3 +35,6 @@ coverage.xml
 venv
 *.DS_Store
 /docs/build/
+
+# Force file creation
+docs/cntosync.rst
