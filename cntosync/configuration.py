@@ -25,4 +25,5 @@
 version = '0.1.0'
 index_directory = '.cntosync'
 index_file = 'repoinfo'
+tree_file = 'repotree'
 extension = '.cntosync'

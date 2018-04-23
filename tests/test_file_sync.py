@@ -259,9 +259,9 @@ def test_repository_init(mocker):
                            metafile_extension='filext')
 
     assert repo.repo_path == '/repository'
-    assert repo.index_subdir == 'indexhere'
-    assert repo.index_fullpath == '/repository/indexhere'
-    assert repo.index_filename == 'repoindex'
-    assert repo.sync_file_ext == 'filext'
+    assert repo.index_directory == 'indexhere'
+    assert repo._index_path == '/repository/indexhere'
+    assert repo._index_file_path == 'repoindex'
+    assert repo._sync_file_extension == 'filext'
     assert repo.settings == {}
     assert repo.file_checksums == {}

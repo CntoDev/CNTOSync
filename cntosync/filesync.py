@@ -24,7 +24,7 @@
 
 import os
 import zlib
-from typing import Dict, Iterable, List, Union
+from typing import Dict, Iterable, List, Sequence
 from urllib.parse import urlparse
 
 import msgpack
@@ -81,21 +81,20 @@ class Repository(object):
 
     supported_url_schemas = ('file', 'http', 'https')
 
-    def __init__(self, path: str,
-                 index_filename: str = 'repoinfo', metafile_extension: str = '.cntosync') -> None:
+    def __init__(self, path: str, url: str = None, display_name: str = None) -> None:
         """Initialize object properties."""
         self.repo_path: str = os.path.abspath(path)
+        self.url = url
+        self.display_name = display_name
 
-        self.index_subdir: str = configuration.index_directory
-        self.index_fullpath: str = os.path.join(self.repo_path, self.index_subdir)
-        self.index_filename: str = index_filename
-        self.sync_file_ext: str = metafile_extension
+        self._index_subdir: str = configuration.index_directory
+        self._index_path: str = os.path.join(self.repo_path, self._index_subdir)
+        self._index_file_path: str = os.path.join(self._index_path, configuration.index_file)
+        self._tree_file_path: str = os.path.join(self._index_path, configuration.tree_file)
+        self._sync_file_extension: str = configuration.extension
 
-        self.settings: Dict[str, Union[str, int]] = {}
         # Contains whole file checksums to quickly check if a file has been updated
         self.file_checksums: Dict[str, int] = {}
-        # Contains the data required for the file syncronization
-        self.file_sync_data: Dict = {}
 
     @staticmethod
     def check_presence(directory: str) -> bool:
@@ -143,48 +142,67 @@ class Repository(object):
 
         return cls(directory)
 
-    def index(self, flush: bool = False) -> None:
-        """Generate main index file and sync files, update object status."""
-        file_list = list_files(self.repo_path, [self.index_subdir, ], [self.sync_file_ext, ])
-        gen_file_checksums = {}
+    # TODO: needs further documentation
+    def build(self) -> None:
+        """Update repository to reflect file changes."""
+        updated_files: Sequence[str] = self._detect_updated_files()
+
+        self._update_index_file()
+        self._update_tree_file()
+        for file in updated_files:
+            self._update_synchronization_file(file)
+
+    # TODO: improve/extend documentation
+    def _detect_updated_files(self) -> Sequence[str]:
+        """Return absolute paths of files that have been updated."""
+        file_list = list_files(self.repo_path, [self._index_subdir, ], [self._sync_file_extension, ])
+        updated_files: list = []
 
         for file in file_list:
-            gen_file_checksums[file] = file_checksum(file)
-            if file not in self.file_checksums or self.file_checksums[file] != \
-                    gen_file_checksums[file]:
-                # File has been updated
-                self.generate_file_sync_metadata(file)
+            whole_file_checksum: int = file_checksum(file)
+            if file not in self.file_checksums or whole_file_checksum != self.file_checksums[file]:
+                updated_files.append(file)
+                self.file_checksums[file] = whole_file_checksum
 
-        self.file_checksums = gen_file_checksums
+        return updated_files
+    
+    def _update_index_file(self) -> None:
+        """Update repository index file to reflect object status."""
+        pass
 
-        if flush:
-            self.flush_index()
-            self.flush_all_sync_files()
+    def _update_tree_file(self) -> None:
+        """Update repository tree file to reflect object status."""
+        pass
 
-    def generate_file_sync_metadata(self, path: str) -> None:
-        """Generate synchronisation metadata for file at `path`."""
-        self.file_sync_data[path] = file_checksum(path)
-        file_sync_path = path + self.sync_file_ext
+    def _update_synchronization_file(self, file: str) -> None:
+        """Update synchronization file `file` with object synchronization data."""
+        pass
 
-    def flush_sync_file(self, file: str) -> None:
-        """Write `file` synchronisation metadata into its synchronisation file."""
-        sync_file_path = file + self.sync_file_ext
 
-        with open(sync_file_path, mode='w+b') as sync_file:
-            sync_file.write(msgpack.packb(self.file_sync_data[file]))
+    # def generate_file_sync_metadata(self, path: str) -> None:
+    #     """Generate synchronisation metadata for file at `path`."""
+    #     self.file_sync_data[path] = file_checksum(path)
+    #     file_sync_path = path + self.sync_file_ext
 
-    def flush_all_sync_files(self) -> None:
-        """Flush every synchronisation file."""
-        for file in self.file_sync_data:
-            self.flush_sync_file(file)
+    # def flush_sync_file(self, file: str) -> None:
+    #     """Write `file` synchronisation metadata into its synchronisation file."""
+    #     sync_file_path = file + self.sync_file_ext
 
-    def flush_index(self) -> None:
-        """Update index file with current repository status, overwrite existing file."""
-        index_content = {'settings': self.settings, 'whole_checksums': self.file_checksums}
+    #     with open(sync_file_path, mode='w+b') as sync_file:
+    #         sync_file.write(msgpack.packb(self.file_sync_data[file]))
 
-        if not os.path.exists(self.index_fullpath):
-            os.mkdir(self.index_fullpath)
+    # def flush_all_sync_files(self) -> None:
+    #     """Flush every synchronisation file."""
+    #     for file in self.file_sync_data:
+    #         self.flush_sync_file(file)
 
-        index_file_path = os.path.join(self.index_fullpath, self.index_filename)
-        with open(index_file_path, mode='w+b') as index_file:
-            index_file.write(msgpack.packb(index_content))
+    # def flush_index(self) -> None:
+    #     """Update index file with current repository status, overwrite existing file."""
+    #     index_content = {'settings': self.settings, 'whole_checksums': self.file_checksums}
+
+    #     if not os.path.exists(self.index_fullpath):
+    #         os.mkdir(self.index_fullpath)
+
+    #     index_file_path = os.path.join(self.index_fullpath, self.index_filename)
+    #     with open(index_file_path, mode='w+b') as index_file:
+    #         index_file.write(msgpack.packb(index_content))
