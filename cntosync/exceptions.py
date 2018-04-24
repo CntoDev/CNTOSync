@@ -20,22 +20,22 @@
 # All rights reserved.
 # --------------------------------License Notice----------------------------------
 
-.cache/
-.coverage
-.eggs/
-.mypy_cache/
-.ropeproject/
-.tox/
-.*.sw*
-*.egg-info/
-.pytest_cache/
-__pycache__/
-coverage.xml
-.idea/
-venv
-*.DS_Store
-/docs/build/
-.vscode/
+"""This module contains the set of custom exceptions used."""
 
-# Force file creation
-docs/cntosync.rst
+from typing import Sequence
+
+
+class InvalidURL(ValueError):
+    """The URL format is invalid."""
+
+    pass
+
+
+class UnsupportedURLSchema(ValueError):
+    """The URL is not supported."""
+
+    def __init__(self, supported_schemas: Sequence, *args: str) -> None:
+        """Initialize UnsupportedURLSchema with `supported_schemas`."""
+        self.supported_schemas: Sequence = supported_schemas
+
+        super().__init__(*args)

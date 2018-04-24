@@ -20,11 +20,9 @@
 # All rights reserved.
 # --------------------------------License Notice----------------------------------
 
-"""Dummy placeholder test module."""
+"""Provide access to the configuration."""
 
-import cntosync as unit
-
-
-def test_dummy():
-    """Dummy placeholder test."""
-    assert unit is not None
+version = '0.1.0'
+index_directory = '.cntosync'
+index_file = 'repoinfo'
+extension = '.cntosync'
