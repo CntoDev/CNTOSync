@@ -25,7 +25,6 @@
 import os
 import random
 import zlib
-from unittest.mock import call
 
 import cntosync.configuration as config
 import cntosync.filesync as unit
@@ -115,8 +114,8 @@ def test_init_repo_index_ok(common_mock):
     directory = '/test'
     name = 'repositorytestname'
     url = 'file://something'
-    index_data = {'display_name': name, 'url': url, 'configuration_version': config.version,
-                  'index_file_name': config.index_file, 'sync_file_extension': config.extension}
+    index_keys = ['display_name', 'url', 'configuration_version', 'index_file_path',
+                  'tree_file_path', 'sync_file_extension']
 
     common_mock.mock_path_isdir.return_value = True
     common_mock.mock_check_presence.return_value = False
@@ -125,7 +124,11 @@ def test_init_repo_index_ok(common_mock):
 
     common_mock.mock_open.return_value.__enter__.return_value.write.assert_called()
     common_mock.mock_packb.assert_called_once()
-    assert common_mock.mock_packb.call_args == call(index_data)
+
+    args, kwargs = common_mock.mock_packb.call_args
+    arg_index_content = args[0]
+    for key in index_keys:
+        assert key in arg_index_content
 
 
 @pytest.mark.parametrize('overwrite', [
@@ -249,19 +252,3 @@ def test_file_checksum(tmpdir, content_size):
     file_path.write_binary(file_content)
 
     assert unit.file_checksum(file_path) == zlib.adler32(file_content)
-
-
-def test_repository_init(mocker):
-    """Assert configuration is properly loaded when instancing the class."""
-    repo = unit.Repository('/repository',
-                           index_directory='indexhere',
-                           index_filename='repoindex',
-                           metafile_extension='filext')
-
-    assert repo.repo_path == '/repository'
-    assert repo.index_directory == 'indexhere'
-    assert repo._index_path == '/repository/indexhere'
-    assert repo._index_file_path == 'repoindex'
-    assert repo._sync_file_extension == 'filext'
-    assert repo.settings == {}
-    assert repo.file_checksums == {}
